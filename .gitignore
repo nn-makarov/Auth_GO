@@ -1,0 +1,18 @@
+@"
+*.db
+*.sqlite
+*.sqlite3
+test.db
+
+.idea/
+.vscode/
+
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+
+*.log
+"@ | Out-File -FilePath .gitignore -Encoding utf8
