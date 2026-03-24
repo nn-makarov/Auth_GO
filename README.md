@@ -1,120 +1,70 @@
 # GO_Auth
 
-Легковесный Go-проект с авторизацией, JWT-токенами, ролевой моделью и управлением правами доступа.
+Go-сервис аутентификации и авторизации с JWT, ролевой моделью и Docker.
 
-## Обзор
+## Стек
 
-- Веб-сервер: `gin`.
-- База данных: `sqlite` (`gorm` ORM).
-- JWT для аутентификации (`golang-jwt/jwt/v5`).
-- Хэширование паролей: `bcrypt`.
-- Модель ролей/разрешений: `admin`, `user`.
+- Go 1.26, Gin, GORM, SQLite
+- JWT, bcrypt
+- Docker
 
-## Структура проекта
+## Запуск
 
-- `main.go` — инициализация сервера, маршрутов и middleware.
-- `auth.go` — логика JWT, хэширование паролей, права доступа, инициализация БД.
-- `handlers.go` — HTTP-обработчики (`register`, `login`, `profile`, `products`, `create-permission`).
-- `models.go` — модели данных: `User`, `Resource`, `Permission`, запросы/ответы.
-
-## Модель данных
-
-### User
-
-- `ID`, `Email`, `PasswordHash`, `FirstName`, `LastName`, `Role`, `IsActive`.
-- Роль по умолчанию: `user`.
-
-### Resource
-
-- `Name` примеры: `products`, `orders`, `users`.
-
-### Permission
-
-- `Role`, `ResourceID`, флаги: `CanView`, `CanCreate`, `CanEdit`, `CanDelete`.
-
-## Запуск проекта
-
-1. Убедитесь, что установлен [Go 1.20+]
-2. В директории проекта:
+### Локально
 
 ```bash
-cd d:/GO_Auth
 go mod tidy
 go run .
-```
+Docker
+bash
+docker run -p 8080:8080 -v $(pwd):/app -w /app golang:1.26 go run .
+Сервер будет доступен на http://localhost:8080
 
-3. Сервер по умолчанию слушает `:8080`.
+API
+Метод	Эндпоинт	Описание
+POST	/register	Регистрация
+POST	/login	Вход, получение JWT
+GET	/profile	Информация о пользователе
+GET	/api/products	Список продуктов (проверка прав)
+POST	/admin/create-permission	Создание прав (только admin)
+Примеры
+Регистрация
+bash
+curl -X POST http://localhost:8080/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@test.com","password":"1234567890","first_name":"Ivan","last_name":"Ivanov"}'
+Логин
+bash
+curl -X POST http://localhost:8080/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@test.com","password":"1234567890"}'
+Профиль
+bash
+curl http://localhost:8080/profile \
+  -H "Authorization: Bearer <token>"
+Создание прав (admin)
+bash
+curl -X POST http://localhost:8080/admin/create-permission \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"role":"user","resource":"products","can_view":true}'
+Продукты
+bash
+curl http://localhost:8080/api/products \
+  -H "Authorization: Bearer <user_token>"
+Данные по умолчанию
+При первом запуске создаётся:
 
-## Инициализация базы данных
+Администратор: admin@test.com / admin123
 
-В `InitDB()`:
-- создается `test.db`.
-- выполняется `AutoMigrate` для моделей.
-- добавляются ресурсы: `products`, `orders`, `users`.
-- создается админ с логином `admin@test.com`, паролем `admin123`.
+Ресурсы: products, orders, users
 
-## Маршруты API
-
-### Публичные
-
-- `POST /register`
-  - Тело JSON: `{ "email", "password", "first_name", "last_name" }`.
-  - Ответ: `201` или ошибка.
-
-- `POST /login`
-  - Тело JSON: `{ "email", "password" }`.
-  - Ответ: `200` + `token`, `email`, `role`.
-
-- `GET /`
-  - `200` "Auth system on Go".
-
-### Защищенные (Авторизация JWT)
-
-Все маршруты требуют заголовок `Authorization: Bearer <token>`.
-
-- `GET /profile` — информацию о пользовательском аккаунте.
-- `GET /api/products` — список продуктов (проверка `permission view` по ресурсам).
-- `POST /admin/create-permission` — админ устанавливает права.
-    - Тело JSON: `{ "role", "resource", "can_view", "can_create", "can_edit", "can_delete" }`.
-
-## Безопасность и поведение
-
-- Пароли хранятся хэшами via `bcrypt`.
-- Токены живут 30 минут.
-- `admin` имеет полный доступ в `CheckPermission`.
-- Отключенные пользователи (`IsActive=false`) получают `403`.
-
-## Примеры запросов
-
-### Регистрация
-
-```bash
-curl -X POST http://localhost:8080/register -H "Content-Type: application/json" -d '{"email":"user@test.com","password":"password123","first_name":"Ivan","last_name":"Ivanov"}'
-```
-
-### Вход
-
-```bash
-curl -X POST http://localhost:8080/login -H "Content-Type: application/json" -d '{"email":"user@test.com","password":"password123"}'
-```
-
-### Профиль
-
-```bash
-curl http://localhost:8080/profile -H "Authorization: Bearer <token>"
-```
-
-### Создание прав (admin)
-
-```bash
-curl -X POST http://localhost:8080/admin/create-permission -H "Authorization: Bearer <admin-token>" -H "Content-Type: application/json" -d '{"role":"user","resource":"products","can_view":true}'
-```
-
-## Улучшения (future work)
-
-- хранение `jwtSecret` в переменных окружения;
-- refresh токены;
-- RBAC более высокой гибкости (сущность `Role`);
-- отдельно хранение `Resource` и список объектов;
-- тесты (unit + integration); 
-- сборка Docker.
+Структура
+text
+.
+├── main.go      # точка входа, маршруты
+├── auth.go      # JWT, bcrypt, права, БД
+├── handlers.go  # обработчики запросов
+├── models.go    # модели User, Resource, Permission
+├── go.mod
+└── Dockerfile

@@ -7,6 +7,7 @@ import (
     "golang.org/x/crypto/bcrypt"
     "gorm.io/gorm"
     "gorm.io/driver/sqlite"
+    "os"
 )
 
 var jwtSecret = []byte("my-super-secret-key-12345")
@@ -86,21 +87,39 @@ func CheckPermission(db *gorm.DB, user *User, resourceName string, action string
 }
 
 func InitDB() *gorm.DB {
+    // Пробуем открыть или создать БД
     db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
     if err != nil {
-        panic("failed to connect database")
+        // Если не открывается, пробуем удалить и создать заново
+        os.Remove("test.db")
+        db, err = gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+        if err != nil {
+            panic("failed to connect database: " + err.Error())
+        }
     }
     
-    db.AutoMigrate(&User{}, &Resource{}, &Permission{})
+    // Автомиграция
+    if err := db.AutoMigrate(&User{}, &Resource{}, &Permission{}); err != nil {
+        panic("failed to migrate database: " + err.Error())
+    }
     
+    // Создаем ресурсы
     resources := []string{"products", "orders", "users"}
     for _, name := range resources {
-        db.FirstOrCreate(&Resource{}, Resource{Name: name})
+        var resource Resource
+        result := db.FirstOrCreate(&resource, Resource{Name: name})
+        if result.Error != nil {
+            panic("failed to create resource: " + result.Error.Error())
+        }
     }
     
+    // Создаем админа, если нет
     var admin User
     if err := db.Where("email = ?", "admin@test.com").First(&admin).Error; err != nil {
-        hashedPassword, _ := HashPassword("admin123")
+        hashedPassword, err := HashPassword("admin123")
+        if err != nil {
+            panic("failed to hash password: " + err.Error())
+        }
         admin = User{
             Email:        "admin@test.com",
             PasswordHash: hashedPassword,
@@ -109,7 +128,9 @@ func InitDB() *gorm.DB {
             Role:         "admin",
             IsActive:     true,
         }
-        db.Create(&admin)
+        if err := db.Create(&admin).Error; err != nil {
+            panic("failed to create admin: " + err.Error())
+        }
     }
     
     return db
